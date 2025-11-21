@@ -8,10 +8,10 @@ use fedimint_core::bitcoin::hashes::sha256;
 use fedimint_core::core::OperationId;
 use fedimint_core::db::{Database, IRawDatabaseExt};
 use fedimint_core::invite_code::InviteCode;
-use fedimint_core::{Amount, anyhow};
+use fedimint_core::{Amount, BitcoinHash, anyhow, hex};
 use fedimint_ln_client::{
-    LightningClientInit, LightningClientModule, LightningOperationMeta,
-    LightningOperationMetaVariant, LnReceiveState,
+    LightningClientInit, LightningClientModule, LightningOperationMeta, LightningOperationMetaPay,
+    LightningOperationMetaVariant, LnReceiveState, PayType,
 };
 use fedimint_meta_client::MetaModuleMetaSourceWithFallback;
 use fedimint_mint_client::MintClientInit;
@@ -160,11 +160,19 @@ impl Blitzi {
         Ok(invoice)
     }
 
-    pub async fn await_payment(&self, invoice: &Bolt11Invoice) -> anyhow::Result<()> {
-        self.await_payment_by_hash(invoice.payment_hash()).await
+    /// Waits for an invoice generated using [`Self::lightning_invoice`] to be paid.
+    ///
+    /// Returns an error in case it times out. There is no need to call this function unless you need to know if an invoice was paid. The funds will be received either way.
+    pub async fn await_incoming_payment(&self, invoice: &Bolt11Invoice) -> anyhow::Result<()> {
+        self.await_incoming_payment_by_hash(invoice.payment_hash())
+            .await
     }
 
-    pub async fn await_payment_by_hash(&self, payment_hash: &sha256::Hash) -> anyhow::Result<()> {
+    /// Waits for an invoice generated using [`Self::lightning_invoice`] to be paid. See [`Self::await_incoming_payment`] for more details.
+    pub async fn await_incoming_payment_by_hash(
+        &self,
+        payment_hash: &sha256::Hash,
+    ) -> anyhow::Result<()> {
         let operation_id = OperationId(*payment_hash.as_ref());
 
         let operation = self
@@ -210,16 +218,95 @@ impl Blitzi {
         unreachable!("Stream ended unexpectedly");
     }
 
-    pub async fn pay(&self, invoice: &Bolt11Invoice) -> anyhow::Result<()> {
+    /// Pays an invoice and returns the preimage of the payment.
+    ///
+    /// If an payment was already made to the same invoice, the result of the previous payment will be returned again. This allows building safe retry logic that just tries to pay an invoice again if it's unclear if a previous call to this function succeeded or not (e.g. in the case of a crash).
+    ///
+    /// Retries are not supported for now since they will likely fail too if the original attempt failed and would add additional complexity.
+    pub async fn pay(&self, invoice: &Bolt11Invoice) -> anyhow::Result<[u8; 32]> {
         let ln_client = self.ln_module();
+        let operation_id = Self::get_payment_operation_id(invoice.payment_hash());
+        let pay_type = if let Some(operation) = self
+            .client
+            .operation_log()
+            .get_operation(operation_id)
+            .await
+        {
+            match operation.meta::<LightningOperationMeta>().variant {
+                LightningOperationMetaVariant::Pay(LightningOperationMetaPay {
+                    is_internal_payment,
+                    ..
+                }) => {
+                    if is_internal_payment {
+                        PayType::Internal(operation_id)
+                    } else {
+                        PayType::Lightning(operation_id)
+                    }
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "Operation associated with the payment hash is not an incoming payment"
+                    ));
+                }
+            }
+        } else {
+            let ln_gateway = ln_client
+                .get_gateway(None, false)
+                .await?
+                .ok_or_else(|| anyhow!("No LN gateway available"))?;
 
-        let ln_gateway = ln_client
-            .get_gateway(None, false)
-            .await?
-            .ok_or_else(|| anyhow!("No LN gateway available"))?;
+            let payment = ln_client
+                .pay_bolt11_invoice(Some(ln_gateway), invoice.clone(), ())
+                .await?;
+            payment.payment_type
+        };
 
-        ln_client.pay_bolt11_invoice(Some(ln_gateway), invoice.clone(), ()).await?;
+        let preimage = match pay_type {
+            PayType::Internal(operation_id) => {
+                match ln_client
+                    .subscribe_internal_pay(operation_id)
+                    .await?
+                    .await_outcome()
+                    .await
+                    .context("No outcome found for payment, should never happen")?
+                {
+                    fedimint_ln_client::InternalPayState::Preimage(preimage) => preimage.0,
+                    state => return Err(anyhow!("Payment failed: {:?}", state)),
+                }
+            }
+            PayType::Lightning(operation_id) => {
+                match ln_client
+                    .subscribe_ln_pay(operation_id)
+                    .await?
+                    .await_outcome()
+                    .await
+                    .context("No outcome found for payment, should never happen")?
+                {
+                    fedimint_ln_client::LnPayState::Success { preimage } => hex::decode(preimage)
+                        .context("Invalid preimage")?
+                        .try_into()
+                        .ok()
+                        .context("Invalid preimage length")?,
+                    state => return Err(anyhow!("Payment failed: {:?}", state)),
+                }
+            }
+        };
 
-        Ok(())
+        Ok(preimage)
+    }
+
+    fn get_payment_operation_id(payment_hash: &sha256::Hash) -> OperationId {
+        // Copied from fedimint-ln-client
+        fn get_payment_operation_id(payment_hash: &sha256::Hash, index: u16) -> OperationId {
+            // Copy the 32 byte payment hash and a 2 byte index to make every payment
+            // attempt have a unique `OperationId`
+            let mut bytes = [0; 34];
+            bytes[0..32].copy_from_slice(&payment_hash.to_byte_array());
+            bytes[32..34].copy_from_slice(&index.to_le_bytes());
+            let hash: sha256::Hash = BitcoinHash::hash(&bytes);
+            OperationId(hash.to_byte_array())
+        }
+
+        get_payment_operation_id(payment_hash, 0)
     }
 }
