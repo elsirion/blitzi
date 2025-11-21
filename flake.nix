@@ -29,6 +29,7 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             rustToolchain
+            rust-bin.nightly.latest.rustfmt
             pkg-config
             cmake
             clang
@@ -37,6 +38,7 @@
           ];
 
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+          RUSTFMT = "${pkgs.rust-bin.nightly.latest.rustfmt}/bin/rustfmt";
           "ROCKSDB_${build_arch_underscores}_STATIC" = "true";
           "ROCKSDB_${build_arch_underscores}_LIB_DIR" = "${
             pkgs.rocksdb_8_11.override { enableLiburing = false; }

@@ -1,3 +1,6 @@
+use std::path::PathBuf;
+use std::str::FromStr;
+
 use fedimint_bip39::{Bip39RootSecretStrategy, Mnemonic};
 use fedimint_client::meta::MetaService;
 use fedimint_client::module::meta::LegacyMetaSource;
@@ -17,8 +20,6 @@ use fedimint_meta_client::MetaModuleMetaSourceWithFallback;
 use fedimint_mint_client::MintClientInit;
 use futures_lite::stream::StreamExt;
 use lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription, Description};
-use std::path::PathBuf;
-use std::str::FromStr;
 
 const ECASH_CLUB_INVITE: &str = "fed11qgqzggnhwden5te0v9cxjtn9vd3jue3wvfkxjmnyva6kzunyd9skutnwv46z7qqpyzhv5mxgpl79xz7j649sj6qldmde5s2uxchy4uh7840qgymsqmazzp6sn43";
 
@@ -42,19 +43,23 @@ impl Default for BlitziBuilder {
 }
 
 impl BlitziBuilder {
-    /// Sets the directory where Fedimint data will be stored. Defaults to `$XDG_DATA_HOME/fedimint/default`
+    /// Sets the directory where Fedimint data will be stored. Defaults to
+    /// `$XDG_DATA_HOME/fedimint/default`
     pub fn datadir(mut self, path: PathBuf) -> Self {
         self.datadir = path;
         self
     }
 
-    /// Sets the federation to connect to via an already parsed invite code. If you have a string invite code, use [`Self::federation`] instead.
+    /// Sets the federation to connect to via an already parsed invite code. If
+    /// you have a string invite code, use [`Self::federation`] instead.
     pub fn federation_invite(mut self, invite: InviteCode) -> Self {
         self.federation = invite;
         self
     }
 
-    /// Sets the federation to connect to via an invite code string. If you already have a parsed invite code, use [`Self::federation_invite`] instead.
+    /// Sets the federation to connect to via an invite code string. If you
+    /// already have a parsed invite code, use [`Self::federation_invite`]
+    /// instead.
     pub fn federation(mut self, invite: &str) -> anyhow::Result<Self> {
         let invite = InviteCode::from_str(invite)?;
         self.federation = invite;
@@ -125,7 +130,8 @@ impl Blitzi {
         Self::builder().build().await
     }
 
-    /// Creates a new Blitzi builder for more control. If you just want to go with the defaults use [`Blitzi::new`] instead.
+    /// Creates a new Blitzi builder for more control. If you just want to go
+    /// with the defaults use [`Blitzi::new`] instead.
     pub fn builder() -> BlitziBuilder {
         BlitziBuilder::default()
     }
@@ -160,15 +166,19 @@ impl Blitzi {
         Ok(invoice)
     }
 
-    /// Waits for an invoice generated using [`Self::lightning_invoice`] to be paid.
+    /// Waits for an invoice generated using [`Self::lightning_invoice`] to be
+    /// paid.
     ///
-    /// Returns an error in case it times out. There is no need to call this function unless you need to know if an invoice was paid. The funds will be received either way.
+    /// Returns an error in case it times out. There is no need to call this
+    /// function unless you need to know if an invoice was paid. The funds will
+    /// be received either way.
     pub async fn await_incoming_payment(&self, invoice: &Bolt11Invoice) -> anyhow::Result<()> {
         self.await_incoming_payment_by_hash(invoice.payment_hash())
             .await
     }
 
-    /// Waits for an invoice generated using [`Self::lightning_invoice`] to be paid. See [`Self::await_incoming_payment`] for more details.
+    /// Waits for an invoice generated using [`Self::lightning_invoice`] to be
+    /// paid. See [`Self::await_incoming_payment`] for more details.
     pub async fn await_incoming_payment_by_hash(
         &self,
         payment_hash: &sha256::Hash,
@@ -220,9 +230,14 @@ impl Blitzi {
 
     /// Pays an invoice and returns the preimage of the payment.
     ///
-    /// If an payment was already made to the same invoice, the result of the previous payment will be returned again. This allows building safe retry logic that just tries to pay an invoice again if it's unclear if a previous call to this function succeeded or not (e.g. in the case of a crash).
+    /// If an payment was already made to the same invoice, the result of the
+    /// previous payment will be returned again. This allows building safe retry
+    /// logic that just tries to pay an invoice again if it's unclear if a
+    /// previous call to this function succeeded or not (e.g. in the case of a
+    /// crash).
     ///
-    /// Retries are not supported for now since they will likely fail too if the original attempt failed and would add additional complexity.
+    /// Retries are not supported for now since they will likely fail too if the
+    /// original attempt failed and would add additional complexity.
     pub async fn pay(&self, invoice: &Bolt11Invoice) -> anyhow::Result<[u8; 32]> {
         let ln_client = self.ln_module();
         let operation_id = Self::get_payment_operation_id(invoice.payment_hash());
