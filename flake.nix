@@ -4,50 +4,43 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
-    crane.url = "github:ipetkov/crane";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, crane, flake-utils, ... }:
+  outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
       let
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs {
           inherit system overlays;
         };
-        
+
+        lib = nixpkgs.lib;
+
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
           extensions = [ "rust-src" "rust-analyzer" ];
         };
-        
-        craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
-        
-        commonArgs = {
-          src = craneLib.cleanCargoSource ./.;
-          strictDeps = true;
-          doCheck = false;
-          
-          # Let rocksdb crate build its own RocksDB for compatibility
-          nativeBuildInputs = with pkgs; [
-            rustToolchain
-            cmake
-            pkg-config
-            perl
-            clang
-            llvmPackages.libclang
-            llvmPackages.libcxxClang
-          ];
-          
-          LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
-        };
+
+        build_arch_underscores =
+          lib.strings.replaceStrings [ "-" ] [ "_" ]
+            pkgs.stdenv.buildPlatform.config;
       in
       {
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             rustToolchain
-            rust-analyzer
             pkg-config
+            cmake
+            clang
+            llvmPackages.libclang
+            llvmPackages.libcxxClang
           ];
+
+          LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+          "ROCKSDB_${build_arch_underscores}_STATIC" = "true";
+          "ROCKSDB_${build_arch_underscores}_LIB_DIR" = "${
+            pkgs.rocksdb_8_11.override { enableLiburing = false; }
+          }/lib/";
         };
       });
 }
