@@ -72,7 +72,8 @@ use fedimint_core::bitcoin::hashes::sha256;
 use fedimint_core::core::OperationId;
 use fedimint_core::db::{Database, IRawDatabaseExt};
 use fedimint_core::invite_code::InviteCode;
-use fedimint_core::{Amount, BitcoinHash, anyhow, hex};
+use fedimint_core::util::BoxStream;
+use fedimint_core::{BitcoinHash, anyhow, hex};
 use fedimint_ln_client::{
     LightningClientInit, LightningClientModule, LightningOperationMeta, LightningOperationMetaPay,
     LightningOperationMetaVariant, LnReceiveState, PayType,
@@ -83,6 +84,12 @@ use futures_lite::stream::StreamExt;
 use lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription, Description};
 
 const ECASH_CLUB_INVITE: &str = "fed11qgqzggnhwden5te0v9cxjtn9vd3jue3wvfkxjmnyva6kzunyd9skutnwv46z7qqpyzhv5mxgpl79xz7j649sj6qldmde5s2uxchy4uh7840qgymsqmazzp6sn43";
+
+/// Utility type for amounts in millisatoshi reexported from fedimint-core.
+pub use fedimint_core::Amount;
+/// Utility module for parsing lightning invoices reexported from
+/// lightning-invoice.
+pub use lightning_invoice;
 
 /// Builder for the Blitzi client that allows configuring the fedimint client's
 /// settings.
@@ -249,15 +256,32 @@ impl Blitzi {
             .expect("LN module not found")
     }
 
-    /// Generates a new Lightning invoice for the given `amount_msats` in
-    /// millisatoshi containing the given `description`.
+    /// Returns the current balance held by Blitzi.
+    ///
+    /// If you want to be notified when the balance changes, use
+    /// [`Self::subscribe_balance_changes`] instead.
+    pub async fn balance(&self) -> Amount {
+        self.client
+            .get_balance()
+            .await
+            .expect("Primary module not available, should not happen")
+    }
+
+    /// Returns a stream that yields the current balance every time it changes.
+    /// Returns the balance in millisatoshi right away.
+    pub async fn subscribe_balance_changes(&self) -> BoxStream<'static, Amount> {
+        self.client.subscribe_balance_changes().await
+    }
+
+    /// Generates a new Lightning invoice for the given `amount` (up to milli
+    /// satoshi precision) containing the given `description`.
     ///
     /// # Errors
     /// Returns an error if no LN gateway is available or if the invoice cannot
     /// be generated for any other reason.
     pub async fn lightning_invoice(
         &self,
-        amount_msats: u64,
+        amount: Amount,
         description: &str,
     ) -> anyhow::Result<Bolt11Invoice> {
         let ln_client = self.ln_module();
@@ -268,7 +292,7 @@ impl Blitzi {
             .ok_or_else(|| anyhow!("No LN gateway available"))?;
         let (_, invoice, _) = ln_client
             .create_bolt11_invoice(
-                Amount::from_msats(amount_msats),
+                amount,
                 Bolt11InvoiceDescription::Direct(Description::new(description.into())?),
                 None,
                 (),
