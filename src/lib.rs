@@ -16,7 +16,7 @@
 //!
 //! ```no_run
 //! # use anyhow::Result;
-//! use blitzi::Blitzi;
+//! use blitzi::{Amount, Blitzi};
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<()> {
@@ -24,7 +24,9 @@
 //! let blitzi = Blitzi::new().await?;
 //!
 //! // Generate a new Lightning invoice for 1000 millisatoshi and await its payment
-//! let invoice = blitzi.lightning_invoice(1000, "Test payment").await?;
+//! let invoice = blitzi
+//!     .lightning_invoice(Amount::from_msats(1000), "Test payment")
+//!     .await?;
 //! println!("Invoice: {}", invoice);
 //!
 //! match blitzi.await_incoming_payment(&invoice).await {
@@ -218,14 +220,15 @@ async fn generate_root_secret(db: &Database) -> anyhow::Result<RootSecret> {
 /// ```no_run
 /// # use anyhow::Result;
 /// # use fedimint_core::hex;
-/// use blitzi::Blitzi;
+/// use blitzi::{Amount, Blitzi};
 ///
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
 /// let blitzi = Blitzi::new().await?;
 ///
-/// // Amount is in millisatoshi
-/// let invoice = blitzi.lightning_invoice(1000, "Test payment").await?;
+/// let invoice = blitzi
+///     .lightning_invoice(Amount::from_msats(1000), "Test payment")
+///     .await?;
 /// println!("Invoice: {}", invoice);
 ///
 /// let preimage = blitzi.pay(&invoice).await?;
