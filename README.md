@@ -14,6 +14,12 @@ With Blitzi you can outsource the infrastructure to any Fedimint federation
 of your choosing (or just go with the default for small amounts) and receive
 and send Lightning payments without any hassle.
 
+## Blitzid - REST API Server
+
+For non-Rust applications, Blitzi provides `blitzid`, a standalone binary that exposes the same functionality as the library via a REST API. This allows you to use Blitzi from any programming language.
+
+See [BLITZID.md](BLITZID.md) for detailed documentation on building, running, and using the REST API.
+
 ## Examples
 
 The fastest way to get started is to create a new Blitzi client with default

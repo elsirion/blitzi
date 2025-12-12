@@ -8,6 +8,10 @@ description = "Easy to use Bitcoin Lighning client that uses Fedimint as its bac
 keywords = ["Bitcoin", "Lightning", "Fedimint"]
 categories = ["cryptography::cryptocurrencies"]
 
+[[bin]]
+name = "blitzid"
+path = "src/bin/blitzid.rs"
+
 [dependencies]
 anyhow = "1"
 fedimint-bip39 = "0.9.0"
@@ -20,7 +24,17 @@ fedimint-rocksdb = "0.9.0"
 futures-lite = "2.6.1"
 lightning-invoice = "0.33.2"
 xdg = "3"
-tokio = "1.48.0"
+tokio = { version = "1.48.0", features = ["full"] }
+axum = "0.7"
+clap = { version = "4", features = ["derive", "env"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace"] }
+rand = "0.8"
+hex = "0.4"
 
 [profile.dev.package]
 tikv-jemalloc-sys = { opt-level = 3 }
