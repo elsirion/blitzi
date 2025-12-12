@@ -24,8 +24,50 @@
         build_arch_underscores =
           lib.strings.replaceStrings [ "-" ] [ "_" ]
             pkgs.stdenv.buildPlatform.config;
+        blitzidPackage = pkgs.rustPlatform.buildRustPackage {
+          pname = "blitzid";
+          version = "0.3.0";
+
+          src = ./.;
+
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+
+          nativeBuildInputs = with pkgs; [
+            pkg-config
+            cmake
+            clang
+            rustToolchain
+          ];
+
+          buildInputs = with pkgs; [
+            (rocksdb_8_11.override { enableLiburing = false; })
+          ];
+
+          buildAndTestSubdir = null;
+          cargoBuildFlags = [ "--bin" "blitzid" ];
+
+          LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+          "ROCKSDB_${build_arch_underscores}_STATIC" = "true";
+          "ROCKSDB_${build_arch_underscores}_LIB_DIR" = "${
+            pkgs.rocksdb_8_11.override { enableLiburing = false; }
+          }/lib/";
+
+          meta = with lib; {
+            description = "Blitzi Lightning REST API daemon";
+            homepage = "https://github.com/elsirion/blitzi";
+            license = licenses.mit;
+            maintainers = [ ];
+          };
+        };
       in
       {
+        packages = {
+          blitzid = blitzidPackage;
+          default = blitzidPackage;
+        };
+
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             rustToolchain

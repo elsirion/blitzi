@@ -1,0 +1,30 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-blitzid:
+    name: Build blitzid
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v13
+      
+      - name: Setup Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@v7
+      
+      - name: Build blitzid package
+        run: nix build .#blitzid
+      
+      - name: Check blitzid binary
+        run: |
+          ls -lh result/bin/blitzid
+          file result/bin/blitzid
