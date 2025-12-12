@@ -11,6 +11,8 @@ jobs:
   build-blitzid:
     name: Build blitzid
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
