@@ -284,3 +284,22 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_bearer_token() {
+        let token = generate_bearer_token();
+        assert_eq!(token.len(), 32);
+        assert!(token.chars().all(|c| c.is_alphanumeric()));
+    }
+
+    #[test]
+    fn test_generate_bearer_token_uniqueness() {
+        let token1 = generate_bearer_token();
+        let token2 = generate_bearer_token();
+        assert_ne!(token1, token2, "Generated tokens should be unique");
+    }
+}
