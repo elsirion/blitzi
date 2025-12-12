@@ -167,6 +167,10 @@ async fn get_balance(
     }))
 }
 
+/// Checks if an invoice has been paid by waiting for payment.
+/// 
+/// Note: This endpoint blocks until the invoice is paid or times out, which is
+/// intentional behavior. Clients should use appropriate HTTP timeouts.
 async fn check_invoice(
     State(state): State<AppState>,
     Path(payment_hash): Path<String>,
@@ -194,11 +198,31 @@ async fn check_invoice(
 
     let mut hash_array = [0u8; 32];
     hash_array.copy_from_slice(&payment_hash_bytes);
-    let payment_hash = fedimint_core::bitcoin::hashes::sha256::Hash::from_byte_array(hash_array);
+    let payment_hash_obj = fedimint_core::bitcoin::hashes::sha256::Hash::from_byte_array(hash_array);
 
-    match state.blitzi.await_incoming_payment_by_hash(&payment_hash).await {
+    match state.blitzi.await_incoming_payment_by_hash(&payment_hash_obj).await {
         Ok(()) => Ok(Json(InvoiceStatusResponse { paid: true })),
-        Err(_) => Ok(Json(InvoiceStatusResponse { paid: false })),
+        Err(e) => {
+            let error_msg = e.to_string();
+            if error_msg.contains("No operation found") {
+                Err((
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse {
+                        error: "Invoice not found or not issued by this server".to_string(),
+                    }),
+                ))
+            } else if error_msg.contains("canceled") {
+                Ok(Json(InvoiceStatusResponse { paid: false }))
+            } else {
+                error!("Error checking invoice status: {}", e);
+                Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: format!("Failed to check invoice status: {}", e),
+                    }),
+                ))
+            }
+        }
     }
 }
 

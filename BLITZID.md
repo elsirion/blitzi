@@ -4,7 +4,9 @@ Blitzid is a standalone binary that exposes the Blitzi library functionality as 
 
 ## Building
 
-To build the binary, you need to have Nix installed and use the provided development shell:
+### Using Nix (Recommended)
+
+The project provides a Nix development shell with the correct compiler version and dependencies:
 
 ```bash
 # Install Nix (if not already installed)
@@ -12,6 +14,18 @@ sh <(curl -L https://nixos.org/nix/install) --daemon
 
 # Enter the development shell
 nix develop
+
+# Build the binary
+cargo build --release --bin blitzid
+```
+
+### Using Standard Rust Toolchain
+
+If you have a compatible Rust toolchain installed (stable, with RocksDB system dependencies), you can build without Nix:
+
+```bash
+# Make sure you have required system dependencies (e.g., on Ubuntu/Debian):
+sudo apt-get install pkg-config cmake clang libclang-dev
 
 # Build the binary
 cargo build --release --bin blitzid
@@ -129,7 +143,9 @@ Creates a new Lightning invoice.
 
 **GET /invoice/:payment_hash**
 
-Checks if an invoice has been paid. Note: This endpoint will wait for the invoice to be paid or timeout.
+Waits for an invoice to be paid and returns the payment status. 
+
+**⚠️ Note:** This endpoint blocks until the invoice is paid or times out. It's designed to be used with long HTTP timeouts (e.g., 5+ minutes) or in a polling scenario. The payment_hash should be a 32-byte hex-encoded hash obtained from the create invoice endpoint.
 
 **Response:**
 ```json
@@ -137,6 +153,11 @@ Checks if an invoice has been paid. Note: This endpoint will wait for the invoic
   "paid": true
 }
 ```
+
+**Error Responses:**
+- `404 NOT FOUND`: Invoice not found or not issued by this server
+- `400 BAD REQUEST`: Invalid payment hash format
+- `500 INTERNAL_SERVER_ERROR`: Server error while checking status
 
 ### Pay Invoice
 
