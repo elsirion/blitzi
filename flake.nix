@@ -49,7 +49,9 @@
           buildAndTestSubdir = null;
           cargoBuildFlags = [ "--bin" "blitzid" ];
 
-          # Fix for aws-lc-sys compilation with newer glibc
+          # Fix for aws-lc-sys compilation with newer glibc (2.40+)
+          # aws-lc-sys triggers -Werror=stringop-overflow in glibc's memcpy checks
+          # This is a known issue with aws-lc-sys and can be removed when the dependency is updated
           NIX_CFLAGS_COMPILE = "-Wno-error=stringop-overflow";
 
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
