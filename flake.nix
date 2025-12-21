@@ -49,6 +49,9 @@
           buildAndTestSubdir = null;
           cargoBuildFlags = [ "--bin" "blitzid" ];
 
+          # Fix for aws-lc-sys compilation with newer glibc
+          NIX_CFLAGS_COMPILE = "-Wno-error=stringop-overflow";
+
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
           "ROCKSDB_${build_arch_underscores}_STATIC" = "true";
           "ROCKSDB_${build_arch_underscores}_LIB_DIR" = "${rocksdb}/lib/";
