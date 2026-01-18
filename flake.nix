@@ -46,10 +46,25 @@
 
           buildInputs = [ rocksdb ];
 
+          # Disable fortify to avoid GCC warnings-as-errors in aws-lc-sys
+          hardeningDisable = [ "fortify" ];
+
           buildAndTestSubdir = null;
           cargoBuildFlags = [ "--bin" "blitzid" ];
 
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+
+          # Wrap CC to disable warnings that cause aws-lc-sys build to fail
+          preBuild = ''
+            export CC_WRAPPER="$NIX_BUILD_TOP/cc-wrapper"
+            cat > "$CC_WRAPPER" << 'WRAPPER'
+            #!/bin/sh
+            exec ${pkgs.stdenv.cc}/bin/cc -Wno-error=stringop-overflow -Wno-error=array-bounds -Wno-error=restrict "$@"
+            WRAPPER
+            chmod +x "$CC_WRAPPER"
+            export CC="$CC_WRAPPER"
+          '';
+
           "ROCKSDB_${build_arch_underscores}_STATIC" = "true";
           "ROCKSDB_${build_arch_underscores}_LIB_DIR" = "${rocksdb}/lib/";
 
@@ -68,6 +83,10 @@
         };
 
         devShells.default = pkgs.mkShell {
+          nativeBuildInputs = with pkgs; [
+            stdenv.cc  # Include nix cc wrapper which respects NIX_CFLAGS_COMPILE
+          ];
+
           buildInputs = with pkgs; [
             rustToolchain
             rust-bin.nightly.latest.rustfmt
@@ -82,6 +101,9 @@
           RUSTFMT = "${pkgs.rust-bin.nightly.latest.rustfmt}/bin/rustfmt";
           "ROCKSDB_${build_arch_underscores}_STATIC" = "true";
           "ROCKSDB_${build_arch_underscores}_LIB_DIR" = "${rocksdb}/lib/";
+
+          # Disable warnings that cause aws-lc-sys build to fail in release mode
+          NIX_CFLAGS_COMPILE = "-Wno-error=stringop-overflow -Wno-error=array-bounds -Wno-error=restrict";
         };
       });
 }
