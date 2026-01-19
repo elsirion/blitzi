@@ -84,6 +84,7 @@ use fedimint_meta_client::MetaModuleMetaSourceWithFallback;
 use fedimint_mint_client::MintClientInit;
 use futures_lite::stream::StreamExt;
 use lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription, Description};
+use tracing::info;
 
 const ECASH_CLUB_INVITE: &str = "fed11qgqzggnhwden5te0v9cxjtn9vd3jue3wvfkxjmnyva6kzunyd9skutnwv46z7qqpyzhv5mxgpl79xz7j649sj6qldmde5s2uxchy4uh7840qgymsqmazzp6sn43";
 
@@ -170,6 +171,7 @@ impl BlitziBuilder {
             LegacyMetaSource,
         >::default()));
 
+        info!("Opening database: {:?}", self.datadir);
         let db = fedimint_rocksdb::RocksDb::open(self.datadir)
             .await?
             .into_database();
