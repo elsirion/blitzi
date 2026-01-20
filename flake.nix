@@ -7,8 +7,16 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:
-    flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      rust-overlay,
+      flake-utils,
+      ...
+    }:
+    flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (
+      system:
       let
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs {
@@ -18,7 +26,10 @@
         lib = nixpkgs.lib;
 
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
-          extensions = [ "rust-src" "rust-analyzer" ];
+          extensions = [
+            "rust-src"
+            "rust-analyzer"
+          ];
         };
 
         build_arch_underscores =
@@ -50,7 +61,10 @@
           hardeningDisable = [ "fortify" ];
 
           buildAndTestSubdir = null;
-          cargoBuildFlags = [ "--bin" "blitzid" ];
+          cargoBuildFlags = [
+            "--bin"
+            "blitzid"
+          ];
 
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
 
@@ -75,16 +89,34 @@
             maintainers = [ ];
           };
         };
+
+        blitzid-image = pkgs.dockerTools.buildLayeredImage {
+          name = "blitzid";
+          contents = [
+            blitzidPackage
+            pkgs.bash
+            pkgs.coreutils
+            pkgs.curl
+          ]
+          ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.busybox ];
+
+          config = {
+            Cmd = [
+              "${blitzidPackage}/bin/blitzid"
+            ];
+          };
+        };
       in
       {
         packages = {
-          blitzid = blitzidPackage;
           default = blitzidPackage;
+          blitzid = blitzidPackage;
+          inherit blitzid-image;
         };
 
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
-            stdenv.cc  # Include nix cc wrapper which respects NIX_CFLAGS_COMPILE
+            stdenv.cc # Include nix cc wrapper which respects NIX_CFLAGS_COMPILE
           ];
 
           buildInputs = with pkgs; [
@@ -105,5 +137,6 @@
           # Disable warnings that cause aws-lc-sys build to fail in release mode
           NIX_CFLAGS_COMPILE = "-Wno-error=stringop-overflow -Wno-error=array-bounds -Wno-error=restrict";
         };
-      });
+      }
+    );
 }

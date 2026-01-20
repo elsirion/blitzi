@@ -3,9 +3,9 @@ name: Build
 
 on:
   push:
-    branches: [main, master]
+    branches: [master]
   pull_request:
-    branches: [main, master]
+    branches: [master]
 
 jobs:
   build-blitzid:
@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
 
     steps:
       - name: Checkout code
@@ -31,3 +32,28 @@ jobs:
         run: |
           ls -lh result/bin/blitzid
           file result/bin/blitzid
+
+      - name: Build blitzid-image
+        run: nix build .#blitzid-image
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push blitzid-image to GHCR
+        run: |
+          # Load the image built by nix and extract the image name
+          LOADED_IMAGE=$(docker load < result | awk '{print $NF}')
+          echo "Loaded image: $LOADED_IMAGE"
+          # Tag and push to GHCR
+          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/blitzid"
+          docker tag "$LOADED_IMAGE" "$IMAGE_NAME:${{ github.sha }}"
+          docker push "$IMAGE_NAME:${{ github.sha }}"
+          # Also tag as latest on master branch
+          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            docker tag "$LOADED_IMAGE" "$IMAGE_NAME:latest"
+            docker push "$IMAGE_NAME:latest"
+          fi
