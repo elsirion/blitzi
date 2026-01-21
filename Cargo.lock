@@ -651,6 +651,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "axum",
+ "bitcoin",
  "clap",
  "fedimint-bip39",
  "fedimint-client",
@@ -663,6 +664,7 @@ dependencies = [
  "hex",
  "lightning-invoice",
  "rand 0.8.5",
+ "secp256k1",
  "serde",
  "serde_json",
  "tokio",
