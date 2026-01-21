@@ -128,6 +128,9 @@
               "BLITZID_DATADIR=/data"
             ];
             Expose = [ "3000" ];
+            Volumes = {
+              "/data" = { };
+            };
           };
         };
       in
