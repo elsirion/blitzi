@@ -72,7 +72,6 @@
             pkg-config
             cmake
             clang
-            rustToolchain
           ];
 
           buildInputs = [ rocksdb ];
@@ -126,6 +125,7 @@
             ];
             Env = [
               "BLITZID_HOST=0.0.0.0"
+              "BLITZID_DATADIR=/data"
             ];
             Expose = [ "3000" ];
           };
