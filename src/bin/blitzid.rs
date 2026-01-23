@@ -88,11 +88,6 @@ struct ErrorResponse {
 }
 
 #[derive(Serialize, Deserialize)]
-struct DecodeInvoiceRequest {
-    invoice: String,
-}
-
-#[derive(Serialize, Deserialize)]
 struct DecodeInvoiceResponse {
     amount_msats: Option<u64>,
     description: Option<String>,
@@ -257,9 +252,9 @@ async fn check_invoice(
 }
 
 async fn decode_invoice(
-    Json(payload): Json<DecodeInvoiceRequest>,
+    Path(invoice): Path<String>,
 ) -> Result<Json<DecodeInvoiceResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let invoice = match Bolt11Invoice::from_str(&payload.invoice) {
+    let inv = match Bolt11Invoice::from_str(&invoice) {
         Ok(inv) => inv,
         Err(e) => {
             return Err((
@@ -271,23 +266,23 @@ async fn decode_invoice(
         }
     };
 
-    let description = match invoice.description() {
+    let description = match inv.description() {
         Bolt11InvoiceDescriptionRef::Direct(d) => Some(d.to_string()),
         Bolt11InvoiceDescriptionRef::Hash(_) => None,
     };
 
     let response = DecodeInvoiceResponse {
-        amount_msats: invoice.amount_milli_satoshis(),
-        description,
-        payee_pubkey: invoice.get_payee_pub_key(),
-        payment_hash: *invoice.payment_hash(),
-        expiry_seconds: invoice.expiry_time().as_secs(),
-        timestamp: invoice
+        amount_msats: inv.amount_milli_satoshis(),
+        description: description,
+        payee_pubkey: inv.get_payee_pub_key(),
+        payment_hash: *inv.payment_hash(),
+        expiry_seconds: inv.expiry_time().as_secs(),
+        timestamp: inv
             .timestamp()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs(),
-        network: invoice.network(),
+        network: inv.network(),
     };
 
     Ok(Json(response))
@@ -354,7 +349,7 @@ async fn main() -> anyhow::Result<()> {
 
     let protected_routes = Router::new()
         .route("/invoice", post(create_invoice))
-        .route("/invoice/decode", post(decode_invoice))
+        .route("/invoice/decode/:invoice", get(decode_invoice))
         .route("/invoice/:payment_hash", get(check_invoice))
         .route("/pay", post(pay_invoice))
         .route("/balance", get(get_balance))
