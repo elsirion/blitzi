@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -8,9 +9,13 @@ use axum::middleware::{self, Next};
 use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use bitcoin::Network;
 use blitzi::{Amount, Blitzi};
 use clap::Parser;
 use fedimint_core::BitcoinHash;
+use lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescriptionRef};
+use secp256k1::PublicKey;
+use secp256k1::hashes::sha256;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
@@ -80,6 +85,22 @@ struct InvoiceStatusResponse {
 #[derive(Serialize, Deserialize)]
 struct ErrorResponse {
     error: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DecodeInvoiceRequest {
+    invoice: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DecodeInvoiceResponse {
+    amount_msats: Option<u64>,
+    description: Option<String>,
+    payee_pubkey: PublicKey,
+    payment_hash: sha256::Hash,
+    expiry_seconds: u64,
+    timestamp: u64,
+    network: Network,
 }
 
 async fn auth_middleware(
@@ -235,6 +256,43 @@ async fn check_invoice(
     }
 }
 
+async fn decode_invoice(
+    Json(payload): Json<DecodeInvoiceRequest>,
+) -> Result<Json<DecodeInvoiceResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let invoice = match Bolt11Invoice::from_str(&payload.invoice) {
+        Ok(inv) => inv,
+        Err(e) => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: format!("Invalid lightning invoice: {}", e),
+                }),
+            ));
+        }
+    };
+
+    let description = match invoice.description() {
+        Bolt11InvoiceDescriptionRef::Direct(d) => Some(d.to_string()),
+        Bolt11InvoiceDescriptionRef::Hash(_) => None,
+    };
+
+    let response = DecodeInvoiceResponse {
+        amount_msats: invoice.amount_milli_satoshis(),
+        description,
+        payee_pubkey: invoice.get_payee_pub_key(),
+        payment_hash: *invoice.payment_hash(),
+        expiry_seconds: invoice.expiry_time().as_secs(),
+        timestamp: invoice
+            .timestamp()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+        network: invoice.network(),
+    };
+
+    Ok(Json(response))
+}
+
 async fn health_check() -> &'static str {
     "OK"
 }
@@ -296,6 +354,7 @@ async fn main() -> anyhow::Result<()> {
 
     let protected_routes = Router::new()
         .route("/invoice", post(create_invoice))
+        .route("/invoice/decode", post(decode_invoice))
         .route("/invoice/:payment_hash", get(check_invoice))
         .route("/pay", post(pay_invoice))
         .route("/balance", get(get_balance))
