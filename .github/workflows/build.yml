@@ -46,6 +46,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push blitzid-image to GHCR
+        if: github.ref == 'refs/heads/master'
         run: |
           # Load the image built by nix and extract the image name
           LOADED_IMAGE=$(docker load < result | awk '{print $NF}')
@@ -54,8 +55,5 @@ jobs:
           IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/blitzid"
           docker tag "$LOADED_IMAGE" "$IMAGE_NAME:${{ github.sha }}"
           docker push "$IMAGE_NAME:${{ github.sha }}"
-          # Also tag as latest on master branch
-          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
-            docker tag "$LOADED_IMAGE" "$IMAGE_NAME:latest"
-            docker push "$IMAGE_NAME:latest"
-          fi
+          docker tag "$LOADED_IMAGE" "$IMAGE_NAME:latest"
+          docker push "$IMAGE_NAME:latest"
