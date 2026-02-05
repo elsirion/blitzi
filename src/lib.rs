@@ -178,7 +178,15 @@ impl BlitziBuilder {
 
         // TODO: use config being present to decide if to open or join
         let client = if let Some(root_secret) = try_load_root_secret(&db).await? {
-            client_builder.open(db, root_secret).await?
+            let client = client_builder.open(db, root_secret).await?;
+
+            ensure!(client.federation_id() == self.federation.federation_id(), 
+                "Client is configured for federation ID {}, but invite code is for federation ID {}",
+                client.federation_id(),
+                self.federation.federation_id()
+            );
+
+            client
         } else {
             let root_secret = generate_root_secret(&db).await?;
             client_builder

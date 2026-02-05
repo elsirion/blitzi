@@ -273,7 +273,7 @@ async fn decode_invoice(
 
     let response = DecodeInvoiceResponse {
         amount_msats: inv.amount_milli_satoshis(),
-        description: description,
+        description,
         payee_pubkey: inv.get_payee_pub_key(),
         payment_hash: *inv.payment_hash(),
         expiry_seconds: inv.expiry_time().as_secs(),
