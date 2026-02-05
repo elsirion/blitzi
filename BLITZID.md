@@ -181,6 +181,37 @@ Waits for an invoice to be paid and returns the payment status.
 - `400 BAD REQUEST`: Invalid payment hash format
 - `500 INTERNAL_SERVER_ERROR`: Server error while checking status
 
+### Decode Invoice
+
+**GET /invoice/decode/:invoice**
+
+Decodes a Lightning invoice and returns its details without paying it. This is useful for displaying invoice information to users before payment.
+
+**Response:**
+```json
+{
+  "amount_msats": 1000,
+  "description": "Test payment",
+  "payee_pubkey": "02a1b2c3...",
+  "payment_hash": "abcd1234...",
+  "expiry_seconds": 3600,
+  "timestamp": 1706140800,
+  "network": "bitcoin"
+}
+```
+
+**Field Descriptions:**
+- `amount_msats`: Amount in millisatoshi (null if not specified in invoice)
+- `description`: Human-readable description (null if using description hash)
+- `payee_pubkey`: Public key of the payment recipient
+- `payment_hash`: Payment hash for the invoice
+- `expiry_seconds`: Invoice expiry duration in seconds
+- `timestamp`: Unix timestamp when invoice was created
+- `network`: Bitcoin network (bitcoin, testnet, regtest, or signet)
+
+**Error Responses:**
+- `400 BAD REQUEST`: Invalid lightning invoice format
+
 ### Pay Invoice
 
 **POST /pay**
@@ -222,6 +253,10 @@ curl -X POST \
   -d '{"amount_msats": 1000, "description": "Test"}' \
   http://localhost:3000/invoice
 
+# Decode an invoice
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:3000/invoice/decode/lnbc10n1...
+
 # Pay an invoice
 curl -X POST \
   -H "Authorization: Bearer $TOKEN" \
@@ -249,6 +284,10 @@ invoice_data = {
     "description": "Test payment"
 }
 response = requests.post(f"{BASE_URL}/invoice", json=invoice_data, headers=HEADERS)
+print(response.json())
+
+# Decode invoice
+response = requests.get(f"{BASE_URL}/invoice/decode/lnbc10n1...", headers=HEADERS)
 print(response.json())
 
 # Pay invoice
@@ -283,6 +322,11 @@ fetch(`${BASE_URL}/invoice`, {
     description: "Test payment"
   })
 })
+  .then(res => res.json())
+  .then(console.log);
+
+// Decode invoice
+fetch(`${BASE_URL}/invoice/decode/lnbc10n1...`, { headers })
   .then(res => res.json())
   .then(console.log);
 
